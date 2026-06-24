@@ -1,14 +1,29 @@
 """
-Node agent — runs on each contributor Mac.
-Loads a quantized model at startup and serves inference jobs over HTTP.
+Node agent — runs on a contributor cloud NVIDIA GPU VM.
 
-Usage:
-    MODEL_PATH=/path/to/model.gguf uvicorn node_agent.main:app --port 8001
+Loads a model via vLLM at startup and serves inference jobs over HTTP.
+The orchestrator dispatches jobs to POST /run; results are returned synchronously.
+
+Usage (single GPU):
+    MODEL_NAME=mistralai/Mistral-7B-Instruct-v0.2 \
+    ORCHESTRATOR_URL=https://your-orchestrator.up.railway.app \
+    API_KEY=secret \
+    NODE_BASE_URL=http://$(curl -s ifconfig.me):8001 \
+    uvicorn node_agent.main:app --host 0.0.0.0 --port 8001
+
+Usage (multi-GPU tensor parallel, e.g. 4×A100 for 70B):
+    ray start --head --port=6379   # on primary VM
+    MODEL_NAME=meta-llama/Meta-Llama-3-70B-Instruct \
+    TENSOR_PARALLEL_SIZE=4 \
+    uvicorn node_agent.main:app --host 0.0.0.0 --port 8001
+
+For Mac local testing (no GPU), set MODEL_NAME=facebook/opt-125m — it runs on CPU.
 """
 
 import os
-import time
 import platform
+import time
+import uuid as _uuid
 from contextlib import asynccontextmanager
 from typing import Optional
 
@@ -17,18 +32,15 @@ import psutil
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 
-# llama-cpp-python is only required when actually running inference.
-# Import is deferred so the orchestrator (which doesn't need it) can import
-# this module's Pydantic models without the Metal wheel installed.
 try:
-    from llama_cpp import Llama
-    _llama_available = True
+    from vllm import AsyncEngineArgs, AsyncLLMEngine, SamplingParams
+    _vllm_available = True
 except ImportError:
-    _llama_available = False
+    _vllm_available = False
 
 
 # ---------------------------------------------------------------------------
-# Pydantic models
+# Pydantic models (unchanged — same contract with orchestrator)
 # ---------------------------------------------------------------------------
 
 class JobRequest(BaseModel):
@@ -47,10 +59,10 @@ class JobResult(BaseModel):
 
 class HealthInfo(BaseModel):
     node_id: str
-    os: str
-    chip: str
+    gpu: str
     ram_gb: int
     model_loaded: Optional[str]
+    tensor_parallel_size: int
     status: str
 
 
@@ -58,26 +70,30 @@ class HealthInfo(BaseModel):
 # Global state
 # ---------------------------------------------------------------------------
 
-_model: Optional["Llama"] = None
+_engine: Optional["AsyncLLMEngine"] = None
 _node_id: str = ""
-_model_path: str = ""
+_model_name: str = ""
 _orchestrator_url: str = ""
 _api_key: str = ""
+_tensor_parallel: int = 1
 
 
-def _chip_name() -> str:
+def _gpu_name() -> str:
+    gpu = os.environ.get("GPU_NAME", "")
+    if gpu:
+        return gpu
     try:
         import subprocess
-        result = subprocess.run(
-            ["sysctl", "-n", "machdep.cpu.brand_string"],
-            capture_output=True, text=True, timeout=2
+        r = subprocess.run(
+            ["nvidia-smi", "--query-gpu=name", "--format=csv,noheader"],
+            capture_output=True, text=True, timeout=3,
         )
-        raw = result.stdout.strip()
-        if raw:
-            return raw.lower().replace(" ", "_")
+        name = r.stdout.strip().splitlines()[0]
+        if name:
+            return name
     except Exception:
         pass
-    return platform.processor() or "unknown"
+    return "cpu"
 
 
 def _ram_gb() -> int:
@@ -85,97 +101,106 @@ def _ram_gb() -> int:
 
 
 # ---------------------------------------------------------------------------
-# Lifespan — model is loaded once at startup
+# Lifespan — engine loaded once at startup
 # ---------------------------------------------------------------------------
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    global _model, _node_id, _model_path, _orchestrator_url
+    global _engine, _node_id, _model_name, _orchestrator_url, _api_key, _tensor_parallel
 
-    _model_path = os.environ.get("MODEL_PATH", "")
+    _model_name      = os.environ.get("MODEL_NAME", "mistralai/Mistral-7B-Instruct-v0.2")
     _orchestrator_url = os.environ.get("ORCHESTRATOR_URL", "")
-    _node_id = os.environ.get("NODE_ID", platform.node())
-    _api_key = os.environ.get("API_KEY", "")
+    _node_id         = os.environ.get("NODE_ID", platform.node())
+    _api_key         = os.environ.get("API_KEY", "")
+    _tensor_parallel  = int(os.environ.get("TENSOR_PARALLEL_SIZE", "1"))
 
-    if _model_path:
-        if not _llama_available:
-            raise RuntimeError(
-                "MODEL_PATH is set but llama-cpp-python is not installed. "
-                "Install with: uv pip install 'llama-cpp-python[metal]'"
-            )
-        print(f"[node_agent] Loading model from {_model_path} …")
-        _model = Llama(
-            model_path=_model_path,
-            n_ctx=4096,
-            n_gpu_layers=-1,   # offload all layers to Metal
-            verbose=False,
-        )
-        print("[node_agent] Model loaded.")
+    if not _vllm_available:
+        print("[node_agent] vLLM not installed — running in stub mode.")
+        print("[node_agent] Install with: pip install vllm")
     else:
-        print("[node_agent] No MODEL_PATH set — running in stub mode (health/register only).")
+        print(f"[node_agent] Loading {_model_name} "
+              f"(tensor_parallel={_tensor_parallel}) …")
+        args = AsyncEngineArgs(
+            model=_model_name,
+            tensor_parallel_size=_tensor_parallel,
+            gpu_memory_utilization=float(os.environ.get("GPU_MEMORY_UTIL", "0.90")),
+            dtype="auto",
+            trust_remote_code=True,
+        )
+        _engine = AsyncLLMEngine.from_engine_args(args)
+        print("[node_agent] Engine ready.")
 
-    # Register with orchestrator if configured
-    if _orchestrator_url and _model_path:
+    if _orchestrator_url and _engine is not None:
         await _register()
 
     yield
 
-    # Cleanup: nothing to do for llama.cpp (GC handles it)
+    # vLLM engine cleanup is handled by the GC / Ray shutdown
+    if _engine is not None:
+        await _engine.abort_request("shutdown")
 
 
 async def _register():
-    model_name = os.path.basename(_model_path)
     payload = {
         "node_id": _node_id,
-        "os": "darwin",
-        "chip": _chip_name(),
+        "os": platform.system().lower(),
+        "chip": _gpu_name(),
         "ram_gb": _ram_gb(),
-        "max_model": model_name,
-        "throughput_class": "medium",
-        "models_loaded": [model_name],
+        "max_model": _model_name,
+        "throughput_class": "high",
+        "models_loaded": [_model_name],
         "base_url": os.environ.get("NODE_BASE_URL", ""),
     }
     headers = {"X-Api-Key": _api_key} if _api_key else {}
     try:
         async with httpx.AsyncClient(timeout=5) as client:
             r = await client.post(
-                f"{_orchestrator_url}/nodes/register", json=payload, headers=headers
+                f"{_orchestrator_url}/nodes/register",
+                json=payload,
+                headers=headers,
             )
             r.raise_for_status()
-            print(f"[node_agent] Registered with orchestrator: {r.json()}")
+            print(f"[node_agent] Registered: {r.json()}")
     except Exception as e:
-        print(f"[node_agent] Registration failed (will retry on next heartbeat): {e}")
+        print(f"[node_agent] Registration failed: {e}")
 
 
 # ---------------------------------------------------------------------------
 # App
 # ---------------------------------------------------------------------------
 
-app = FastAPI(title="GPU Cluster Node Agent", lifespan=lifespan)
+app = FastAPI(title="GPU Cluster Node Agent (vLLM)", lifespan=lifespan)
 
 
 @app.post("/run", response_model=JobResult)
 async def run_job(job: JobRequest) -> JobResult:
-    if _model is None:
-        raise HTTPException(status_code=503, detail="No model loaded. Set MODEL_PATH.")
+    if _engine is None:
+        raise HTTPException(
+            status_code=503,
+            detail="No model loaded. Set MODEL_NAME and ensure vLLM is installed.",
+        )
 
-    t0 = time.perf_counter()
-    completion = _model(
-        job.prompt,
+    params = SamplingParams(
         max_tokens=job.max_tokens,
-        echo=False,
-        stop=["</s>", "[INST]"],
+        stop=["</s>", "[INST]", "[/INST]"],
     )
-    latency_ms = (time.perf_counter() - t0) * 1000
+    request_id = str(_uuid.uuid4())
+    t0 = time.perf_counter()
 
-    output_text: str = completion["choices"][0]["text"].strip()
-    tokens_generated: int = completion["usage"]["completion_tokens"]
+    output_text = ""
+    tokens_generated = 0
+    async for output in _engine.generate(job.prompt, params, request_id):
+        if output.finished:
+            output_text = output.outputs[0].text.strip()
+            tokens_generated = len(output.outputs[0].token_ids)
+
+    latency_ms = round((time.perf_counter() - t0) * 1000, 1)
 
     return JobResult(
         job_id=job.job_id,
         output=output_text,
         tokens_generated=tokens_generated,
-        latency_ms=round(latency_ms, 1),
+        latency_ms=latency_ms,
     )
 
 
@@ -183,15 +208,14 @@ async def run_job(job: JobRequest) -> JobResult:
 async def health() -> HealthInfo:
     return HealthInfo(
         node_id=_node_id,
-        os="darwin",
-        chip=_chip_name(),
+        gpu=_gpu_name(),
         ram_gb=_ram_gb(),
-        model_loaded=os.path.basename(_model_path) if _model_path else None,
-        status="ready" if _model is not None else "no_model",
+        model_loaded=_model_name if _engine is not None else None,
+        tensor_parallel_size=_tensor_parallel,
+        status="ready" if _engine is not None else "no_model",
     )
 
 
 @app.post("/nodes/{node_id}/heartbeat")
 async def heartbeat(node_id: str):
-    """Self-heartbeat endpoint used when the orchestrator polls this node."""
     return {"node_id": node_id, "accepted": True}

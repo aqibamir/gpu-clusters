@@ -1,0 +1,34 @@
+# Node agent image — for contributor cloud NVIDIA GPU VMs.
+# Built on the official vLLM image which ships CUDA, cuDNN, and vLLM pre-installed.
+#
+# Build:
+#   docker build -f Dockerfile.node -t gpu-clusters-node .
+#
+# Run (example):
+#   docker run --gpus all -p 8001:8001 \
+#     -e MODEL_NAME=mistralai/Mistral-7B-Instruct-v0.2 \
+#     -e ORCHESTRATOR_URL=https://your-app.up.railway.app \
+#     -e API_KEY=secret \
+#     -e NODE_BASE_URL=http://<your-public-ip>:8001 \
+#     gpu-clusters-node
+
+FROM vllm/vllm-openai:latest
+
+WORKDIR /app
+
+# Install the node agent's HTTP dependencies on top of the vLLM base
+RUN pip install --no-cache-dir \
+    "fastapi>=0.111.0" \
+    "uvicorn[standard]>=0.30.0" \
+    "httpx>=0.27.0" \
+    "psutil>=6.0.0"
+
+COPY node_agent/ node_agent/
+COPY orchestrator/ orchestrator/
+COPY anonymizer/ anonymizer/
+
+# HuggingFace model cache — mount a volume here to avoid re-downloading
+ENV HF_HOME=/root/.cache/huggingface
+VOLUME /root/.cache/huggingface
+
+CMD ["uvicorn", "node_agent.main:app", "--host", "0.0.0.0", "--port", "8001"]

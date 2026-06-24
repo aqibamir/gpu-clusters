@@ -1,13 +1,13 @@
 """
 Unit tests for the node agent — no model required (stub mode).
+vLLM is not installed locally; the agent starts with _engine=None.
 """
 
 import pytest
 from fastapi.testclient import TestClient
 
-# Override MODEL_PATH before importing app so lifespan skips model loading.
 import os
-os.environ.setdefault("MODEL_PATH", "")
+os.environ.setdefault("MODEL_NAME", "")
 os.environ.setdefault("ORCHESTRATOR_URL", "")
 os.environ.setdefault("NODE_ID", "test-node")
 

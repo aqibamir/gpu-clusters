@@ -16,7 +16,12 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-# Install llama-cpp-python with Metal via:
+# Cloud NVIDIA GPU nodes — install vLLM on Linux with CUDA:
+#   pip install vllm  (or: uv pip install vllm)
+gpu = [
+    "vllm>=0.4.0",
+]
+# Mac Apple Silicon local testing — install llama-cpp-python with Metal:
 #   CMAKE_ARGS="-DGGML_METAL=on" uv pip install llama-cpp-python
 metal = [
     "llama-cpp-python>=0.2.90",
