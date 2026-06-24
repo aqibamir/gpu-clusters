@@ -1,0 +1,556 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>GPU Cluster</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:      #0e0e0e;
+      --surface: #161616;
+      --border:  #2a2a2a;
+      --text:    #e0e0e0;
+      --muted:   #666;
+      --accent:  #7c6af7;
+      --green:   #4ade80;
+      --yellow:  #facc15;
+      --red:     #f87171;
+      --font:    'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--font);
+      font-size: 13px;
+      line-height: 1.6;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    header {
+      padding: 14px 20px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      position: relative;
+    }
+
+    header h1 { font-size: 14px; font-weight: 500; letter-spacing: .04em; }
+
+    .dot {
+      width: 8px; height: 8px; border-radius: 50%;
+      background: var(--muted);
+      transition: background .3s;
+      flex-shrink: 0;
+    }
+    .dot.online { background: var(--green); }
+
+    .node-count { font-size: 11px; color: var(--muted); }
+
+    .header-right { margin-left: auto; display: flex; align-items: center; gap: 10px; }
+
+    /* ---- Settings toggle ---- */
+    .gear-btn {
+      background: none;
+      border: 1px solid var(--border);
+      color: var(--muted);
+      width: 28px; height: 28px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 14px;
+      display: flex; align-items: center; justify-content: center;
+      transition: border-color .15s, color .15s;
+    }
+    .gear-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+    /* ---- Settings drawer ---- */
+    .settings-drawer {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 16px 20px;
+      display: none;
+      gap: 12px;
+      align-items: flex-end;
+    }
+    .settings-drawer.open { display: flex; }
+    .settings-drawer > div { flex: 1; }
+
+    .save-btn {
+      padding: 8px 18px;
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      border-radius: 4px;
+      font-family: var(--font);
+      font-size: 12px;
+      cursor: pointer;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+    .save-btn:hover { opacity: .85; }
+
+    main {
+      flex: 1;
+      display: grid;
+      grid-template-columns: 380px 1fr;
+    }
+
+    /* ---- Left panel ---- */
+    .panel-left {
+      border-right: 1px solid var(--border);
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    label {
+      font-size: 11px; color: var(--muted);
+      display: block; margin-bottom: 5px;
+      letter-spacing: .05em; text-transform: uppercase;
+    }
+
+    select, input[type="number"], input[type="text"],
+    input[type="password"], textarea {
+      width: 100%;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      color: var(--text);
+      font-family: var(--font);
+      font-size: 13px;
+      padding: 8px 10px;
+      border-radius: 4px;
+      outline: none;
+      transition: border-color .15s;
+    }
+
+    select:focus, input:focus, textarea:focus {
+      border-color: var(--accent);
+    }
+
+    textarea { resize: vertical; min-height: 180px; line-height: 1.5; }
+
+    .row { display: flex; gap: 10px; }
+    .row > * { flex: 1; }
+
+    button.submit-btn {
+      width: 100%;
+      padding: 10px;
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      border-radius: 4px;
+      font-family: var(--font);
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: opacity .15s;
+      letter-spacing: .03em;
+    }
+    button.submit-btn:hover { opacity: .85; }
+    button.submit-btn:disabled { opacity: .4; cursor: default; }
+
+    /* ---- Right panel ---- */
+    .panel-right {
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .result-header {
+      padding: 14px 20px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 11px;
+      color: var(--muted);
+      letter-spacing: .05em;
+      text-transform: uppercase;
+    }
+
+    .status-badge {
+      padding: 2px 8px;
+      border-radius: 10px;
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+      background: var(--border);
+      color: var(--muted);
+    }
+    .status-badge.queued     { background: #2a2a1a; color: var(--yellow); }
+    .status-badge.dispatched { background: #1a1a2e; color: var(--accent); }
+    .status-badge.done       { background: #0f2a1a; color: var(--green); }
+    .status-badge.failed     { background: #2a0f0f; color: var(--red); }
+
+    .job-id-text { font-size: 10px; color: var(--muted); margin-left: auto; }
+
+    .result-body {
+      flex: 1;
+      padding: 20px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+      word-break: break-word;
+      color: var(--text);
+      line-height: 1.7;
+    }
+
+    .placeholder { color: var(--muted); font-style: italic; }
+
+    .spinner {
+      display: inline-block;
+      width: 10px; height: 10px;
+      border: 2px solid var(--border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin .7s linear infinite;
+      margin-right: 4px;
+      vertical-align: middle;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ---- History ---- */
+    .history {
+      border-top: 1px solid var(--border);
+      max-height: 180px;
+      overflow-y: auto;
+    }
+
+    .history-header {
+      padding: 10px 20px;
+      font-size: 11px;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: .05em;
+      border-bottom: 1px solid var(--border);
+      position: sticky;
+      top: 0;
+      background: var(--bg);
+    }
+
+    .history-item {
+      padding: 8px 20px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      cursor: pointer;
+      transition: background .1s;
+    }
+    .history-item:hover { background: var(--surface); }
+    .history-item:last-child { border-bottom: none; }
+
+    .hi-model { color: var(--muted); font-size: 11px; }
+    .hi-prompt {
+      flex: 1;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-size: 12px;
+    }
+    .hi-time { font-size: 10px; color: var(--muted); }
+
+    .notice {
+      font-size: 11px; color: var(--yellow);
+      background: #2a2a1a; border: 1px solid #3a3a1a;
+      padding: 8px 12px; border-radius: 4px; margin-top: 4px;
+    }
+
+    ::-webkit-scrollbar { width: 5px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="dot" id="clusterDot"></div>
+  <h1>GPU Cluster</h1>
+  <div class="header-right">
+    <span class="node-count" id="nodeCount">— nodes online</span>
+    <button class="gear-btn" onclick="toggleSettings()" title="Settings">⚙</button>
+  </div>
+</header>
+
+<!-- Settings drawer -->
+<div class="settings-drawer" id="settingsDrawer">
+  <div>
+    <label>Orchestrator URL</label>
+    <input type="text" id="settingsUrl" placeholder="https://your-app.up.railway.app" />
+  </div>
+  <div>
+    <label>API Key</label>
+    <input type="password" id="settingsKey" placeholder="your-secret-key" />
+  </div>
+  <button class="save-btn" onclick="saveSettings()">Save &amp; close</button>
+</div>
+
+<main>
+  <div class="panel-left">
+    <div id="noKeyNotice" class="notice" style="display:none">
+      No API key set. Open ⚙ settings to configure the orchestrator URL and key.
+    </div>
+
+    <div>
+      <label>Model</label>
+      <select id="modelSelect">
+        <option value="mistral-7b-instruct-v0.2.Q4_K_M">mistral-7b-instruct-v0.2.Q4_K_M</option>
+        <option value="mistral-7b-q4_k_m">mistral-7b-q4_k_m</option>
+        <option value="mistral-7b-q8_0">mistral-7b-q8_0</option>
+        <option value="llama-3-8b-q4_k_m">llama-3-8b-q4_k_m</option>
+        <option value="llama-3-70b-q4_k_m">llama-3-70b-q4_k_m</option>
+        <option value="phi-3-mini-q4_k_m">phi-3-mini-q4_k_m</option>
+      </select>
+    </div>
+
+    <div>
+      <label>Prompt</label>
+      <textarea id="promptInput" placeholder="Enter your prompt…"></textarea>
+    </div>
+
+    <div class="row">
+      <div>
+        <label>Max tokens</label>
+        <input type="number" id="maxTokens" value="512" min="1" max="4096" />
+      </div>
+      <div>
+        <label>Priority</label>
+        <input type="number" id="priority" value="0" min="0" max="10" />
+      </div>
+    </div>
+
+    <button class="submit-btn" id="submitBtn" onclick="submitJob()">Submit Job</button>
+  </div>
+
+  <div class="panel-right">
+    <div class="result-header">
+      Output
+      <span class="status-badge" id="statusBadge">idle</span>
+      <span class="job-id-text" id="jobIdText"></span>
+    </div>
+    <div class="result-body" id="resultBody">
+      <span class="placeholder">Submit a job to see the result here.</span>
+    </div>
+    <div class="history" id="historyPanel" style="display:none">
+      <div class="history-header">Recent jobs</div>
+      <div id="historyList"></div>
+    </div>
+  </div>
+</main>
+
+<script>
+  const $ = id => document.getElementById(id);
+  let pollTimer = null;
+  const jobHistory = [];
+
+  // ---------------------------------------------------------------------------
+  // Settings (persisted to localStorage)
+  // ---------------------------------------------------------------------------
+
+  function getSettings() {
+    return {
+      url: localStorage.getItem('orchestrator_url') || '',
+      key: localStorage.getItem('api_key') || '',
+    };
+  }
+
+  function orchestratorUrl() {
+    const s = getSettings();
+    return s.url || window.location.origin;
+  }
+
+  function apiKey() {
+    return getSettings().key;
+  }
+
+  function authHeaders() {
+    const k = apiKey();
+    return k ? { 'X-Api-Key': k } : {};
+  }
+
+  function toggleSettings() {
+    const d = $('settingsDrawer');
+    const open = d.classList.toggle('open');
+    if (open) {
+      const s = getSettings();
+      $('settingsUrl').value = s.url;
+      $('settingsKey').value = s.key;
+    }
+  }
+
+  function saveSettings() {
+    const url = $('settingsUrl').value.trim().replace(/\/$/, '');
+    const key = $('settingsKey').value.trim();
+    if (url) localStorage.setItem('orchestrator_url', url);
+    else localStorage.removeItem('orchestrator_url');
+    if (key) localStorage.setItem('api_key', key);
+    else localStorage.removeItem('api_key');
+    $('settingsDrawer').classList.remove('open');
+    updateNoKeyNotice();
+    pingNodes();
+  }
+
+  function updateNoKeyNotice() {
+    $('noKeyNotice').style.display = apiKey() ? 'none' : '';
+  }
+
+  // ---------------------------------------------------------------------------
+  // Node status ping
+  // ---------------------------------------------------------------------------
+
+  async function pingNodes() {
+    try {
+      const r = await fetch(`${orchestratorUrl()}/nodes`, { headers: authHeaders() });
+      if (!r.ok) throw new Error(r.status);
+      const nodes = await r.json();
+      $('clusterDot').className = 'dot ' + (nodes.length > 0 ? 'online' : '');
+      $('nodeCount').textContent = `${nodes.length} node${nodes.length !== 1 ? 's' : ''} online`;
+    } catch {
+      $('clusterDot').className = 'dot';
+      $('nodeCount').textContent = 'orchestrator offline';
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Submit
+  // ---------------------------------------------------------------------------
+
+  async function submitJob() {
+    const prompt = $('promptInput').value.trim();
+    if (!prompt) return;
+
+    $('submitBtn').disabled = true;
+    setStatus('queued');
+    $('resultBody').innerHTML = '<span class="spinner"></span> Queued…';
+
+    try {
+      const r = await fetch(`${orchestratorUrl()}/jobs`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...authHeaders() },
+        body: JSON.stringify({
+          model: $('modelSelect').value,
+          prompt,
+          max_tokens: parseInt($('maxTokens').value),
+          priority: parseInt($('priority').value),
+        }),
+      });
+      if (!r.ok) {
+        const msg = r.status === 401 ? 'Invalid API key — check ⚙ settings.' : await r.text();
+        throw new Error(msg);
+      }
+      const { job_id } = await r.json();
+      $('jobIdText').textContent = job_id.slice(0, 8) + '…';
+      pollJob(job_id, prompt);
+    } catch (e) {
+      setStatus('failed');
+      $('resultBody').textContent = `Error: ${e.message}`;
+      $('submitBtn').disabled = false;
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Poll
+  // ---------------------------------------------------------------------------
+
+  function pollJob(job_id, prompt) {
+    clearInterval(pollTimer);
+    pollTimer = setInterval(async () => {
+      try {
+        const r = await fetch(`${orchestratorUrl()}/jobs/${job_id}`, {
+          headers: authHeaders(),
+        });
+        if (!r.ok) throw new Error(await r.text());
+        const data = await r.json();
+        setStatus(data.status);
+
+        if (data.status === 'dispatched') {
+          $('resultBody').innerHTML = '<span class="spinner"></span> Running on node ' +
+            (data.assigned_node ? data.assigned_node.slice(0, 8) + '…' : '?');
+        }
+
+        if (data.status === 'done') {
+          clearInterval(pollTimer);
+          $('resultBody').textContent = data.result || '(empty result)';
+          $('submitBtn').disabled = false;
+          addHistory(job_id, $('modelSelect').value, prompt, 'done');
+        }
+
+        if (data.status === 'failed') {
+          clearInterval(pollTimer);
+          $('resultBody').textContent = 'Job failed on the network.';
+          $('submitBtn').disabled = false;
+          addHistory(job_id, $('modelSelect').value, prompt, 'failed');
+        }
+      } catch (e) {
+        clearInterval(pollTimer);
+        setStatus('failed');
+        $('resultBody').textContent = `Poll error: ${e.message}`;
+        $('submitBtn').disabled = false;
+      }
+    }, 1500);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Helpers
+  // ---------------------------------------------------------------------------
+
+  function setStatus(status) {
+    const badge = $('statusBadge');
+    badge.textContent = status;
+    badge.className = 'status-badge ' + status;
+  }
+
+  function addHistory(job_id, model, prompt, status) {
+    jobHistory.unshift({ job_id, model, prompt, status, ts: new Date() });
+    if (jobHistory.length > 20) jobHistory.pop();
+    renderHistory();
+  }
+
+  function renderHistory() {
+    const panel = $('historyPanel');
+    const list = $('historyList');
+    if (jobHistory.length === 0) { panel.style.display = 'none'; return; }
+    panel.style.display = '';
+    list.innerHTML = jobHistory.map((h, i) => `
+      <div class="history-item" onclick="loadHistory(${i})">
+        <span class="status-badge ${h.status}">${h.status}</span>
+        <span class="hi-model">${h.model}</span>
+        <span class="hi-prompt">${escHtml(h.prompt)}</span>
+        <span class="hi-time">${h.ts.toLocaleTimeString()}</span>
+      </div>
+    `).join('');
+  }
+
+  function loadHistory(i) {
+    const h = jobHistory[i];
+    $('jobIdText').textContent = h.job_id.slice(0, 8) + '…';
+    setStatus(h.status);
+    fetch(`${orchestratorUrl()}/jobs/${h.job_id}`, { headers: authHeaders() })
+      .then(r => r.json())
+      .then(data => { $('resultBody').textContent = data.result || '(no result)'; });
+  }
+
+  function escHtml(s) {
+    return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
+  // ---------------------------------------------------------------------------
+  // Init
+  // ---------------------------------------------------------------------------
+
+  updateNoKeyNotice();
+  pingNodes();
+  setInterval(pingNodes, 10000);
+
+  $('promptInput').addEventListener('keydown', e => {
+    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) submitJob();
+  });
+</script>
+</body>
+</html>
