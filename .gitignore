@@ -226,3 +226,6 @@ models/
 
 # Logs
 *.log
+
+# brainstorming visual-companion scratch
+.superpowers/
