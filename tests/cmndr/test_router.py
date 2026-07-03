@@ -17,3 +17,11 @@ def test_low_sensitivity_stays_local():
                                payload="x", sensitivity_hint="low"))
     assert d.route == "local"
     assert d.request_id == "r2"
+
+
+def test_escalate_confidence_tracks_configured_threshold():
+    r = ThresholdRouter(threshold=0.4)
+    d = r.classify(RequestItem(id="r3", task_type="summarize",
+                               payload="x", sensitivity_hint="high"))
+    assert d.route == "escalate"
+    assert d.confidence < 0.4
