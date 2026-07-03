@@ -11,25 +11,28 @@ class Anonymizer:
 
     def anonymize(self, request_id: str, text: str) -> tuple[PlaceholderedPayload, RedactionMap]:
         entities = self._detector.detect(text)
-        # Replace right-to-left so spans don't shift.
-        entities = sorted(entities, key=lambda e: e.start, reverse=True)
 
         rmap = RedactionMap()
         type_counters: dict[str, int] = {}
-        out = text
 
-        for ent in entities:
-            existing = rmap.placeholder_for(ent.text)
-            if existing is not None:
-                placeholder = existing
-            else:
-                type_counters[ent.entity_type] = type_counters.get(ent.entity_type, 0) + 1
-                placeholder = f"⟦{ent.entity_type}_{type_counters[ent.entity_type]}⟧"
-                rmap.entries.append(RedactionEntry(
-                    placeholder=placeholder, original_value=ent.text,
-                    entity_type=ent.entity_type, span=(ent.start, ent.end),
-                    source="detector",
-                ))
+        # Pass 1: left-to-right by start, assign placeholders per unique
+        # original value so numbering follows textual (first-occurrence) order.
+        for ent in sorted(entities, key=lambda e: e.start):
+            if rmap.placeholder_for(ent.text) is not None:
+                continue
+            type_counters[ent.entity_type] = type_counters.get(ent.entity_type, 0) + 1
+            placeholder = f"⟦{ent.entity_type}_{type_counters[ent.entity_type]}⟧"
+            rmap.entries.append(RedactionEntry(
+                placeholder=placeholder, original_value=ent.text,
+                entity_type=ent.entity_type, span=(ent.start, ent.end),
+                source="detector",
+            ))
+
+        # Pass 2: right-to-left substitution using the already-built map so
+        # spans don't shift as replacements happen.
+        out = text
+        for ent in sorted(entities, key=lambda e: e.start, reverse=True):
+            placeholder = rmap.placeholder_for(ent.text)
             out = out[:ent.start] + placeholder + out[ent.end:]
 
         summary: dict[str, int] = {}
