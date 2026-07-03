@@ -61,3 +61,20 @@ def test_process_batch_mixed_routes_with_shared_approve():
     assert responses[0].route == "local"
     assert responses[1].route == "escalate"
     assert "Jane Smith" in responses[1].text and "Acme Corp" in responses[1].text
+
+
+class DroppingProvider:
+    """Fake provider that paraphrases away every placeholder (TR-3 path)."""
+
+    def infer(self, payload, max_tokens=512):
+        return "Summary with all names removed."
+
+
+def test_restoration_anomalies_propagate_to_response():
+    item = RequestItem("r5", "summarize", "Jane Smith joined Acme Corp",
+                       sensitivity_hint="high")
+    resp = _pipeline(provider=DroppingProvider()).process_item(
+        item, approve=lambda p: p.accept())
+    assert resp.route == "escalate"
+    assert sorted(resp.restoration_anomalies) == ["⟦ORG_1⟧", "⟦PERSON_1⟧"]
+    assert "Jane Smith" not in resp.text
