@@ -48,3 +48,16 @@ def test_boundary_invariant_provider_never_sees_raw_pii():
     assert len(spy.received) == 1
     sent = spy.received[0].text
     assert "Jane Smith" not in sent and "Acme Corp" not in sent
+
+
+def test_process_batch_mixed_routes_with_shared_approve():
+    items = [
+        RequestItem("b1", "summarize", "hello", sensitivity_hint="low"),
+        RequestItem("b2", "summarize", "Jane Smith joined Acme Corp",
+                    sensitivity_hint="high"),
+    ]
+    responses = _pipeline().process_batch(items, approve=lambda p: p.accept())
+    assert [r.request_id for r in responses] == ["b1", "b2"]
+    assert responses[0].route == "local"
+    assert responses[1].route == "escalate"
+    assert "Jane Smith" in responses[1].text and "Acme Corp" in responses[1].text
