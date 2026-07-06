@@ -1,7 +1,7 @@
 # cmndr MVP — Build Strategy & Design
 
 **Date:** 2026-06-29
-**Status:** draft (pending approval)
+**Status:** approved (2026-07-06) — full-system build authorized; Plan 1/5 (device pipeline) executed
 **Companion spec:** `cmndr-mvp-technical-requirements.md` (the architecture + requirements doc — source of truth for *what* the system is; TR-1…TR-32, §1–§15). This design covers *how we build it* given the existing repo, and pins the frontend surfaces.
 
 ---
