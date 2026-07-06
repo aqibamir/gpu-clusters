@@ -32,3 +32,20 @@ class Preview:
             self.payload.entity_summary[entry.entity_type] = remaining
         else:
             self.payload.entity_summary.pop(entry.entity_type, None)
+
+    def add_redaction(self, original_value: str, entity_type: str) -> str | None:
+        from cmndr.types import RedactionEntry
+        idx = self.payload.text.find(original_value)
+        if idx == -1:
+            return None
+        n = sum(1 for e in self.redaction_map.entries
+                if e.entity_type == entity_type) + 1
+        placeholder = f"⟦{entity_type}_{n}⟧"
+        self.payload.text = self.payload.text.replace(original_value, placeholder)
+        self.redaction_map.entries.append(RedactionEntry(
+            placeholder=placeholder, original_value=original_value,
+            entity_type=entity_type, span=(idx, idx + len(original_value)),
+            source="user-added"))
+        self.payload.entity_summary[entity_type] = \
+            self.payload.entity_summary.get(entity_type, 0) + 1
+        return placeholder
