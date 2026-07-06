@@ -3,8 +3,10 @@ already placeholdered (TR-16). Nodes dial out; there is no dial-in path (CD1).""
 
 import time
 import uuid
+from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Response
+from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 
 from cgn import dispatch, registry
@@ -153,5 +155,9 @@ def create_app(db_path: str = ":memory:") -> FastAPI:
     @app.post("/admin/check_timeouts")
     def timeouts():
         return {"requeued": dispatch.check_timeouts(conn)}
+
+    @app.get("/dashboard", response_class=HTMLResponse)
+    def dashboard():
+        return (Path(__file__).parent / "static" / "dashboard.html").read_text()
 
     return app

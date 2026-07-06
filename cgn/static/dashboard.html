@@ -1,0 +1,65 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>CGN Operator Dashboard</title>
+<style>
+  body{font-family:system-ui;margin:2rem;max-width:960px}
+  table{border-collapse:collapse;width:100%;margin:.5rem 0 1.5rem}
+  td,th{border:1px solid #ccc;padding:.4rem .6rem;text-align:left;font-size:.9rem}
+  .rep{background:#eee;display:inline-block;width:100px;height:8px;border-radius:4px}
+  .rep i{background:#2a7;display:block;height:8px;border-radius:4px}
+  code{background:#f4f4f4;padding:.15rem .35rem;border-radius:4px}
+  input,button{padding:.35rem .6rem;margin-right:.4rem}
+  .lock{color:#888}
+</style>
+<h1>CGN operator dashboard</h1>
+
+<section id="signup">
+  <h2>Operator account</h2>
+  <input id="op" placeholder="operator id"><input id="email" placeholder="email">
+  <label><input type="checkbox" id="consent"> I accept the node-operator terms</label>
+  <button onclick="signup()">Sign up / load</button>
+</section>
+
+<section hidden id="main">
+  <h2>Your nodes <button onclick="addNode()">+ Add node</button></h2>
+  <div id="enroll" hidden>Run this on the node (token is single-use, expires in 15 min):
+    <p><code id="cmd"></code></p></div>
+  <table><thead><tr><th>Node</th><th>Status</th><th>Reputation</th>
+    <th>Jobs</th><th>Load</th></tr></thead><tbody id="nodes"></tbody></table>
+
+  <h2>Live job feed</h2>
+  <table><thead><tr><th>Job</th><th>State</th><th>Stage</th><th>Elapsed</th>
+    <th>Payload</th></tr></thead><tbody id="feed"></tbody></table>
+</section>
+
+<script>
+let OP = null;
+async function signup(){
+  const r = await fetch('/operators', {method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({operator_id: op.value, email: email.value,
+                          consent: consent.checked})});
+  if(!r.ok){ alert('consent is required'); return; }
+  OP = op.value; main.hidden = false; tick();
+}
+async function addNode(){
+  const r = await fetch(`/operators/${OP}/tokens`, {method:'POST'});
+  const t = (await r.json()).token;
+  cmd.textContent = `python -m cgn.node.worker --orchestrator ${location.origin} --token ${t}`;
+  enroll.hidden = false;
+}
+async function tick(){
+  if(!OP) return;
+  const nodesR = await (await fetch(`/operators/${OP}/nodes`)).json();
+  nodes.innerHTML = nodesR.nodes.map(n =>
+    `<tr><td>${n.node_id}</td><td>${n.status}</td>
+     <td><span class="rep"><i style="width:${n.reputation*100}px"></i></span></td>
+     <td>${n.jobs_done}</td><td>${n.current_load}</td></tr>`).join('');
+  const feedR = await (await fetch(`/operators/${OP}/feed`)).json();
+  feed.innerHTML = feedR.events.map(e =>
+    `<tr><td>${e.job_id}</td><td>${e.state}</td><td>${e.stage}</td>
+     <td>${e.elapsed_ms} ms</td>
+     <td class="lock">🔒 de-identified payload</td></tr>`).join('');
+  setTimeout(tick, 2000);
+}
+</script>
