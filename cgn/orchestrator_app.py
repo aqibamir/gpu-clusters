@@ -26,6 +26,12 @@ class JobSubmit(BaseModel):
     timeout_s: float = 120.0
 
 
+class OperatorSignup(BaseModel):
+    operator_id: str
+    email: str
+    consent: bool
+
+
 def create_app(db_path: str = ":memory:") -> FastAPI:
     app = FastAPI(title="cgn-orchestrator")
     conn = connect(db_path)
@@ -34,6 +40,31 @@ def create_app(db_path: str = ":memory:") -> FastAPI:
     @app.post("/operators/{operator_id}/tokens")
     def issue(operator_id: str):
         return {"token": registry.issue_token(conn, operator_id)}
+
+    @app.post("/operators", status_code=201)
+    def signup(req: OperatorSignup):
+        if not req.consent:
+            raise HTTPException(status_code=400,
+                                detail={"reason": "consent-required"})
+        conn.execute("INSERT OR REPLACE INTO operators VALUES (?,?,?)",
+                     (req.operator_id, req.email, time.time()))
+        conn.commit()
+        return {"operator_id": req.operator_id}
+
+    @app.get("/operators/{operator_id}/nodes")
+    def operator_nodes(operator_id: str):
+        rows = conn.execute("SELECT * FROM nodes WHERE operator_id=?",
+                            (operator_id,)).fetchall()
+        nodes = []
+        for r in rows:
+            done = conn.execute(
+                "SELECT COUNT(*) c FROM assignments WHERE node_id=? AND state='done'",
+                (r["node_id"],)).fetchone()["c"]
+            nodes.append({"node_id": r["node_id"], "status": r["status"],
+                          "reputation": r["reputation"],
+                          "last_heartbeat": r["last_heartbeat"],
+                          "current_load": r["current_load"], "jobs_done": done})
+        return {"nodes": nodes}
 
     @app.post("/enroll")
     def enroll(req: EnrollRequest):
