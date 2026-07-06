@@ -66,6 +66,26 @@ def create_app(db_path: str = ":memory:") -> FastAPI:
                           "current_load": r["current_load"], "jobs_done": done})
         return {"nodes": nodes}
 
+    @app.get("/operators/{operator_id}/feed")
+    def operator_feed(operator_id: str):
+        from cgn.contract import StatusEvent
+        rows = conn.execute(
+            "SELECT a.*, j.kind FROM assignments a "
+            "JOIN nodes n ON n.node_id = a.node_id "
+            "JOIN jobs j ON j.job_id = a.job_id "
+            "WHERE n.operator_id=? ORDER BY a.assigned_at DESC LIMIT 100",
+            (operator_id,)).fetchall()
+        state_map = {"assigned": ("running", 0.5), "done": ("done", 1.0),
+                     "timeout": ("reassigned", 0.0)}
+        events = []
+        for r in rows:
+            state, pct = state_map[r["state"]]
+            elapsed = int(((r["completed_at"] or r["assigned_at"]) - r["assigned_at"]) * 1000)
+            events.append(StatusEvent(job_id=r["job_id"], state=state, pct=pct,
+                                      node_id=r["node_id"], elapsed_ms=elapsed,
+                                      stage=r["kind"]).model_dump())
+        return {"events": events}
+
     @app.post("/enroll")
     def enroll(req: EnrollRequest):
         try:
