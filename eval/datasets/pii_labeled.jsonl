@@ -1,0 +1,20 @@
+{"text": "Jane Smith signed the contract with Acme Corp on 12 March 2026.", "gold": [{"entity_type": "PERSON", "text": "Jane Smith"}, {"entity_type": "ORG", "text": "Acme Corp"}, {"entity_type": "DATE_TIME", "text": "12 March 2026"}]}
+{"text": "Please wire the fee to IBAN DE89370400440532013000 by Friday.", "gold": [{"entity_type": "IBAN_CODE", "text": "DE89370400440532013000"}, {"entity_type": "DATE_TIME", "text": "Friday"}]}
+{"text": "Contact Bob Jones at bob.jones@example.com or +49 30 901820.", "gold": [{"entity_type": "PERSON", "text": "Bob Jones"}, {"entity_type": "EMAIL_ADDRESS", "text": "bob.jones@example.com"}, {"entity_type": "PHONE_NUMBER", "text": "+49 30 901820"}]}
+{"text": "The meeting with Maria Garcia takes place in Berlin next Tuesday.", "gold": [{"entity_type": "PERSON", "text": "Maria Garcia"}, {"entity_type": "LOCATION", "text": "Berlin"}, {"entity_type": "DATE_TIME", "text": "next Tuesday"}]}
+{"text": "Invoice 4711 was issued to Mustermann GmbH for 12,000 EUR.", "gold": [{"entity_type": "ORG", "text": "Mustermann GmbH"}, {"entity_type": "MONEY", "text": "12,000 EUR"}]}
+{"text": "Dr. Anna Weber will review the file before 30 June 2026.", "gold": [{"entity_type": "PERSON", "text": "Anna Weber"}, {"entity_type": "DATE_TIME", "text": "30 June 2026"}]}
+{"text": "Send the report to legal@lachaine.com and cc Tom Baker.", "gold": [{"entity_type": "EMAIL_ADDRESS", "text": "legal@lachaine.com"}, {"entity_type": "PERSON", "text": "Tom Baker"}]}
+{"text": "Our office in Munich handles all requests from Bavaria.", "gold": [{"entity_type": "LOCATION", "text": "Munich"}, {"entity_type": "LOCATION", "text": "Bavaria"}]}
+{"text": "The card 4111111111111111 was charged twice on 2026-01-15.", "gold": [{"entity_type": "CREDIT_CARD", "text": "4111111111111111"}, {"entity_type": "DATE_TIME", "text": "2026-01-15"}]}
+{"text": "Peter Schmidt from Hamburg called about the delayed shipment.", "gold": [{"entity_type": "PERSON", "text": "Peter Schmidt"}, {"entity_type": "LOCATION", "text": "Hamburg"}]}
+{"text": "Reach Susanne Vogel at s.vogel@firma.com for scheduling.", "gold": [{"entity_type": "PERSON", "text": "Susanne Vogel"}, {"entity_type": "EMAIL_ADDRESS", "text": "s.vogel@firma.com"}]}
+{"text": "The vendor Initech Ltd missed the deadline of 1 May 2026.", "gold": [{"entity_type": "ORG", "text": "Initech Ltd"}, {"entity_type": "DATE_TIME", "text": "1 May 2026"}]}
+{"text": "Employee John Doe earns 85,000 EUR per year.", "gold": [{"entity_type": "PERSON", "text": "John Doe"}, {"entity_type": "MONEY", "text": "85,000 EUR"}]}
+{"text": "Call our Frankfurt branch at +49 69 1234567 tomorrow.", "gold": [{"entity_type": "LOCATION", "text": "Frankfurt"}, {"entity_type": "PHONE_NUMBER", "text": "+49 69 1234567"}, {"entity_type": "DATE_TIME", "text": "tomorrow"}]}
+{"text": "Karin Lang transferred funds to IBAN AT611904300234573201 yesterday.", "gold": [{"entity_type": "PERSON", "text": "Karin Lang"}, {"entity_type": "IBAN_CODE", "text": "AT611904300234573201"}, {"entity_type": "DATE_TIME", "text": "yesterday"}]}
+{"text": "The claimant, Mr. Oliver Stone, resides in Vienna.", "gold": [{"entity_type": "PERSON", "text": "Oliver Stone"}, {"entity_type": "LOCATION", "text": "Vienna"}]}
+{"text": "Globex Corporation acquired the startup for 2.5 million dollars.", "gold": [{"entity_type": "ORG", "text": "Globex Corporation"}, {"entity_type": "MONEY", "text": "2.5 million dollars"}]}
+{"text": "Her assistant emailed contact@globex.com on 3 February 2026.", "gold": [{"entity_type": "EMAIL_ADDRESS", "text": "contact@globex.com"}, {"entity_type": "DATE_TIME", "text": "3 February 2026"}]}
+{"text": "Werner Krause of Stuttgart chairs the audit committee.", "gold": [{"entity_type": "PERSON", "text": "Werner Krause"}, {"entity_type": "LOCATION", "text": "Stuttgart"}]}
+{"text": "Payment of 300 EUR is due to Nordwind AG by 15 August 2026.", "gold": [{"entity_type": "MONEY", "text": "300 EUR"}, {"entity_type": "ORG", "text": "Nordwind AG"}, {"entity_type": "DATE_TIME", "text": "15 August 2026"}]}
