@@ -1,0 +1,16 @@
+{"task_type": "summarize", "payload": "Summarize: Jane Smith of Acme Corp owes 3 months rent.", "gold_route": "escalate"}
+{"task_type": "summarize", "payload": "what is 2+2", "gold_route": "local"}
+{"task_type": "summarize", "payload": "Summarize the attached contract between Mustermann GmbH and Globex Corporation regarding delivery terms.", "gold_route": "escalate"}
+{"task_type": "summarize", "payload": "rewrite this sentence in passive voice: the cat ate the mouse", "gold_route": "local"}
+{"task_type": "classify", "payload": "Is this spam? 'You won a prize, click here'", "gold_route": "local"}
+{"task_type": "summarize", "payload": "Contact Bob Jones at bob.jones@example.com about invoice 4711.", "gold_route": "escalate"}
+{"task_type": "summarize", "payload": "translate 'good morning' to German", "gold_route": "local"}
+{"task_type": "extract", "payload": "Extract parties: Karin Lang and Nordwind AG signed on 15 August 2026.", "gold_route": "escalate"}
+{"task_type": "summarize", "payload": "list three synonyms for 'fast'", "gold_route": "local"}
+{"task_type": "summarize", "payload": "Peter Schmidt from Hamburg called about IBAN DE89370400440532013000.", "gold_route": "escalate"}
+{"task_type": "classify", "payload": "what day comes after Tuesday", "gold_route": "local"}
+{"task_type": "summarize", "payload": "Dr. Anna Weber will review employee John Doe's salary of 85,000 EUR.", "gold_route": "escalate"}
+{"task_type": "summarize", "payload": "how many grams in a kilogram", "gold_route": "local"}
+{"task_type": "extract", "payload": "Extract the email: reach legal@lachaine.com for terms.", "gold_route": "escalate"}
+{"task_type": "summarize", "payload": "give me a haiku about rain", "gold_route": "local"}
+{"task_type": "summarize", "payload": "Werner Krause of Stuttgart chairs the audit committee at Initech Ltd.", "gold_route": "escalate"}
