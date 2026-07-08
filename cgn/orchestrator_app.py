@@ -94,10 +94,13 @@ def create_app(db_path: str = ":memory:") -> FastAPI:
             resp = registry.enroll(conn, req)
         except registry.EnrollmentError as e:
             raise HTTPException(status_code=400, detail={"reason": e.reason})
-        nonce = uuid.uuid4().hex
+        # Short nonce + a hard token cap: the canary only proves the node runs
+        # the model, so it must stay cheap and be reproducible by a real LLM
+        # (a full-length hex over 512 tokens is slow and easy to paraphrase).
+        nonce = uuid.uuid4().hex[:8]
         dispatch.submit_job(conn, req.capabilities.models[0],
-                            f"Repeat exactly: {nonce}", kind="canary",
-                            canary_nonce=nonce, node_hint=resp.node_id)
+                            f"Repeat exactly: {nonce}", params={"max_tokens": 32},
+                            kind="canary", canary_nonce=nonce, node_hint=resp.node_id)
         return resp
 
     @app.post("/heartbeat")
