@@ -1,65 +1,172 @@
 <!doctype html>
+<html lang="en">
+<head>
 <meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>CGN Operator Dashboard</title>
 <style>
-  body{font-family:system-ui;margin:2rem;max-width:960px}
-  table{border-collapse:collapse;width:100%;margin:.5rem 0 1.5rem}
-  td,th{border:1px solid #ccc;padding:.4rem .6rem;text-align:left;font-size:.9rem}
-  .rep{background:#eee;display:inline-block;width:100px;height:8px;border-radius:4px}
-  .rep i{background:#2a7;display:block;height:8px;border-radius:4px}
-  code{background:#f4f4f4;padding:.15rem .35rem;border-radius:4px}
-  input,button{padding:.35rem .6rem;margin-right:.4rem}
-  .lock{color:#888}
+  :root{
+    --bg:#0c0f14; --panel:#141a22; --panel-2:#1b232d; --line:#26313d;
+    --ink:#e8eef5; --ink-dim:#95a4b6; --ink-faint:#5f7186;
+    --brand:#7c93ff; --brand-ink:#0c0f14;
+    --ok:#3ddc97; --warn:#f7b955; --danger:#ff6b6b;
+    --radius:14px; --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+    --sans:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  }
+  @media (prefers-color-scheme: light){
+    :root{
+      --bg:#f4f6fb; --panel:#ffffff; --panel-2:#f0f3f9; --line:#dbe2ec;
+      --ink:#141a22; --ink-dim:#4a5a6e; --ink-faint:#8494a6;
+      --brand:#4256d6; --brand-ink:#ffffff;
+      --ok:#129d6a; --warn:#c9821a; --danger:#d8443a;
+    }
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);line-height:1.5}
+  .wrap{max-width:960px;margin:0 auto;padding:2rem 1.25rem 4rem}
+  header.top{display:flex;align-items:baseline;gap:.7rem;margin-bottom:.35rem}
+  .mark{font-weight:700;font-size:1.5rem;letter-spacing:-.02em}
+  .mark b{color:var(--brand)}
+  .tag{color:var(--ink-dim);font-size:.85rem}
+  .lede{color:var(--ink-dim);font-size:.92rem;margin:0 0 1.5rem;max-width:64ch}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+        padding:1.15rem;margin-bottom:1.25rem}
+  h2{font-size:1.05rem;margin:0 0 .8rem;display:flex;align-items:center;gap:.6rem}
+  .lbl{color:var(--ink-faint);font-size:.78rem;text-transform:uppercase;letter-spacing:.06em}
+  input,button{font-family:var(--sans);font-size:.92rem}
+  input[type=text],input:not([type]){background:var(--panel-2);color:var(--ink);
+    border:1px solid var(--line);border-radius:9px;padding:.5rem .65rem}
+  input:focus{outline:2px solid var(--brand);outline-offset:1px}
+  label.consent{display:inline-flex;align-items:center;gap:.4rem;color:var(--ink-dim);font-size:.88rem}
+  button{border-radius:9px;padding:.55rem .95rem;border:1px solid var(--line);
+    background:var(--panel-2);color:var(--ink);cursor:pointer}
+  button:hover{border-color:var(--brand)}
+  button.primary{background:var(--brand);color:var(--brand-ink);border-color:var(--brand);font-weight:600}
+  .row{display:flex;flex-wrap:wrap;gap:.6rem;align-items:center}
+  .scroll{overflow-x:auto}
+  table{border-collapse:collapse;width:100%;min-width:520px;font-size:.9rem}
+  th,td{text-align:left;padding:.55rem .6rem;border-bottom:1px solid var(--line)}
+  th{color:var(--ink-faint);font-weight:600;font-size:.76rem;text-transform:uppercase;
+     letter-spacing:.05em}
+  td.node{font-family:var(--mono);font-size:.82rem}
+  .pill{display:inline-block;font-size:.74rem;padding:.13rem .5rem;border-radius:999px;
+    border:1px solid var(--line)}
+  .pill.eligible{color:var(--ok);border-color:color-mix(in srgb,var(--ok) 40%,transparent)}
+  .pill.pending-verification{color:var(--warn);border-color:color-mix(in srgb,var(--warn) 40%,transparent)}
+  .pill.ejected{color:var(--danger);border-color:color-mix(in srgb,var(--danger) 40%,transparent)}
+  .pill.running{color:var(--brand);border-color:color-mix(in srgb,var(--brand) 40%,transparent)}
+  .pill.done{color:var(--ok);border-color:color-mix(in srgb,var(--ok) 40%,transparent)}
+  .pill.reassigned{color:var(--warn);border-color:color-mix(in srgb,var(--warn) 40%,transparent)}
+  .rep{display:inline-block;width:90px;height:7px;border-radius:4px;background:var(--panel-2);
+    border:1px solid var(--line);vertical-align:middle}
+  .rep i{display:block;height:100%;border-radius:4px;background:var(--ok)}
+  code{font-family:var(--mono);font-size:.82rem;background:var(--panel-2);
+    border:1px solid var(--line);border-radius:8px;padding:.6rem .7rem;display:block;
+    white-space:pre-wrap;word-break:break-all}
+  .enroll{margin-top:.8rem;color:var(--ink-dim);font-size:.86rem}
+  .lock{color:var(--ink-faint);font-family:var(--sans)}
+  .muted{color:var(--ink-faint);font-size:.85rem}
+  .hidden{display:none}
+  .copy{margin-left:.5rem;font-size:.75rem;padding:.25rem .5rem}
 </style>
-<h1>CGN operator dashboard</h1>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <span class="mark"><b>cgn</b> operator dashboard</span>
+    <span class="tag">contribute GPU · earn credits</span>
+  </header>
+  <p class="lede">Your machine runs latency-tolerant jobs for the network. Every payload
+    it receives has already had its personal data removed — you never see customer content,
+    only de-identified placeholders.</p>
 
-<section id="signup">
-  <h2>Operator account</h2>
-  <input id="op" placeholder="operator id"><input id="email" placeholder="email">
-  <label><input type="checkbox" id="consent"> I accept the node-operator terms</label>
-  <button onclick="signup()">Sign up / load</button>
-</section>
+  <div class="card" id="signup">
+    <h2>Operator account</h2>
+    <div class="row">
+      <input id="op" placeholder="operator id">
+      <input id="email" placeholder="email">
+      <label class="consent"><input type="checkbox" id="consent"> I accept the node-operator terms</label>
+      <button class="primary" onclick="signup()">Sign up / load</button>
+    </div>
+    <p class="muted" id="signupMsg"></p>
+  </div>
 
-<section hidden id="main">
-  <h2>Your nodes <button onclick="addNode()">+ Add node</button></h2>
-  <div id="enroll" hidden>Run this on the node (token is single-use, expires in 15 min):
-    <p><code id="cmd"></code></p></div>
-  <table><thead><tr><th>Node</th><th>Status</th><th>Reputation</th>
-    <th>Jobs</th><th>Load</th></tr></thead><tbody id="nodes"></tbody></table>
+  <div class="card hidden" id="main">
+    <h2>Your nodes
+      <button class="copy" onclick="addNode()">+ Add node</button>
+    </h2>
+    <div class="enroll hidden" id="enroll">
+      Run this on the machine you want to contribute — the token is single-use and expires in 15 minutes:
+      <code id="cmd"></code>
+    </div>
+    <div class="scroll">
+      <table>
+        <thead><tr><th>Node</th><th>Status</th><th>Reputation</th><th>Jobs</th><th>Load</th></tr></thead>
+        <tbody id="nodes"><tr><td colspan="5" class="muted">No nodes yet — add one above.</td></tr></tbody>
+      </table>
+    </div>
+  </div>
 
-  <h2>Live job feed</h2>
-  <table><thead><tr><th>Job</th><th>State</th><th>Stage</th><th>Elapsed</th>
-    <th>Payload</th></tr></thead><tbody id="feed"></tbody></table>
-</section>
+  <div class="card hidden" id="feedCard">
+    <h2>Live job feed <span class="muted">metadata only</span></h2>
+    <div class="scroll">
+      <table>
+        <thead><tr><th>Job</th><th>State</th><th>Stage</th><th>Elapsed</th><th>Payload</th></tr></thead>
+        <tbody id="feed"><tr><td colspan="5" class="muted">Waiting for jobs…</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+</div>
 
 <script>
 let OP = null;
+
 async function signup(){
+  const msg = document.getElementById('signupMsg');
   const r = await fetch('/operators', {method:'POST',
     headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({operator_id: op.value, email: email.value,
+    body: JSON.stringify({operator_id: op.value.trim(), email: email.value.trim(),
                           consent: consent.checked})});
-  if(!r.ok){ alert('consent is required'); return; }
-  OP = op.value; main.hidden = false; tick();
+  if(!r.ok){ msg.textContent = 'You must accept the node-operator terms to continue.'; return; }
+  OP = op.value.trim(); msg.textContent = '';
+  document.getElementById('main').classList.remove('hidden');
+  document.getElementById('feedCard').classList.remove('hidden');
+  tick();
 }
+
 async function addNode(){
   const r = await fetch(`/operators/${OP}/tokens`, {method:'POST'});
   const t = (await r.json()).token;
-  cmd.textContent = `python -m cgn.node.worker --orchestrator ${location.origin} --token ${t}`;
-  enroll.hidden = false;
+  document.getElementById('cmd').textContent =
+    `ORCHESTRATOR_URL=${location.origin} ENROLL_TOKEN=${t} ./scripts/start_node.sh`;
+  document.getElementById('enroll').classList.remove('hidden');
 }
+
+function pill(cls, text){ return `<span class="pill ${cls}">${text}</span>`; }
+
 async function tick(){
   if(!OP) return;
-  const nodesR = await (await fetch(`/operators/${OP}/nodes`)).json();
-  nodes.innerHTML = nodesR.nodes.map(n =>
-    `<tr><td>${n.node_id}</td><td>${n.status}</td>
-     <td><span class="rep"><i style="width:${n.reputation*100}px"></i></span></td>
-     <td>${n.jobs_done}</td><td>${n.current_load}</td></tr>`).join('');
-  const feedR = await (await fetch(`/operators/${OP}/feed`)).json();
-  feed.innerHTML = feedR.events.map(e =>
-    `<tr><td>${e.job_id}</td><td>${e.state}</td><td>${e.stage}</td>
-     <td>${e.elapsed_ms} ms</td>
-     <td class="lock">🔒 de-identified payload</td></tr>`).join('');
+  try {
+    const nodesR = await (await fetch(`/operators/${OP}/nodes`)).json();
+    const nb = document.getElementById('nodes');
+    nb.innerHTML = nodesR.nodes.length ? nodesR.nodes.map(n =>
+      `<tr><td class="node">${n.node_id}</td>
+       <td>${pill(n.status, n.status)}</td>
+       <td><span class="rep"><i style="width:${Math.round(n.reputation*100)}%"></i></span></td>
+       <td>${n.jobs_done}</td><td>${n.current_load}</td></tr>`).join('')
+      : '<tr><td colspan="5" class="muted">No nodes yet — add one above.</td></tr>';
+
+    const feedR = await (await fetch(`/operators/${OP}/feed`)).json();
+    const fb = document.getElementById('feed');
+    fb.innerHTML = feedR.events.length ? feedR.events.map(e =>
+      `<tr><td class="node">${e.job_id}</td>
+       <td>${pill(e.state, e.state)}</td><td>${e.stage}</td>
+       <td>${e.elapsed_ms} ms</td>
+       <td class="lock">🔒 de-identified payload</td></tr>`).join('')
+      : '<tr><td colspan="5" class="muted">Waiting for jobs…</td></tr>';
+  } catch(e){ /* transient */ }
   setTimeout(tick, 2000);
 }
 </script>
+</body>
+</html>
