@@ -1,48 +1,39 @@
 #!/usr/bin/env bash
-# Start the node agent on this Mac.
+# Register this Mac as a CGN node and start serving jobs.
 #
-# Required env vars:
-#   MODEL_PATH        — path to your .gguf model file
-#   ORCHESTRATOR_URL  — URL of the orchestrator (local or Railway)
-#   API_KEY           — shared secret (must match orchestrator)
-#   NODE_BASE_URL     — this machine's address as seen from the orchestrator
-#                       e.g. http://192.168.1.42:8001 on LAN
-#                       or   http://<tailscale-ip>:8001 over Tailscale
+# The node generates its own keypair locally (never transmitted) and enrolls
+# with a single-use token minted by the operator dashboard ("+ Add node").
+#
+# Required:
+#   ORCHESTRATOR_URL — the orchestrator base URL (local or Railway)
+#   ENROLL_TOKEN     — single-use enrollment token from the dashboard
+# Optional:
+#   MODELS           — space-separated model names this node serves
+#                      (default: mistral-7b-instruct-v0.2.Q4_K_M)
+#   KEY_DIR          — where the node key is stored (default: ~/.cmndr-node)
 #
 # Example:
-#   MODEL_PATH=./models/mistral-7b-instruct-v0.2.Q4_K_M.gguf \
-#   ORCHESTRATOR_URL=https://gpu-clusters-production.up.railway.app \
-#   API_KEY=my-secret-key \
-#   NODE_BASE_URL=http://192.168.1.42:8001 \
-#   ./scripts/start_node.sh
+#   ORCHESTRATOR_URL=https://cmndr-production.up.railway.app \
+#   ENROLL_TOKEN=xxxx ./scripts/start_node.sh
 
 set -euo pipefail
 
-if [ -z "${MODEL_PATH:-}" ]; then
-  echo "Error: MODEL_PATH is not set."
-  echo "Run: python scripts/download_model.py  to get the model first."
-  exit 1
-fi
+: "${ORCHESTRATOR_URL:?set ORCHESTRATOR_URL}"
+: "${ENROLL_TOKEN:?set ENROLL_TOKEN (from the operator dashboard '+ Add node')}"
 
-if [ ! -f "$MODEL_PATH" ]; then
-  echo "Error: Model file not found at $MODEL_PATH"
-  exit 1
-fi
+MODELS="${MODELS:-mistral-7b-instruct-v0.2.Q4_K_M}"
+KEY_DIR="${KEY_DIR:-$HOME/.cmndr-node}"
 
-# Install llama-cpp-python with Metal backend if not already present
+# Install llama-cpp-python with Metal if absent (falls back to EchoBackend if the
+# GGUF model is missing — useful for a wiring smoke test).
 if ! python -c "from llama_cpp import Llama" 2>/dev/null; then
   echo "Installing llama-cpp-python with Metal backend…"
   CMAKE_ARGS="-DGGML_METAL=on" uv pip install llama-cpp-python
 fi
 
-echo "Starting node agent…"
-echo "  MODEL_PATH:       $MODEL_PATH"
-echo "  ORCHESTRATOR_URL: ${ORCHESTRATOR_URL:-http://localhost:8000}"
-echo "  NODE_BASE_URL:    ${NODE_BASE_URL:-http://localhost:8001}"
-
-export MODEL_PATH
-export ORCHESTRATOR_URL="${ORCHESTRATOR_URL:-http://localhost:8000}"
-export API_KEY="${API_KEY:-}"
-export NODE_BASE_URL="${NODE_BASE_URL:-http://localhost:8001}"
-
-uvicorn node_agent.main:app --host 0.0.0.0 --port 8001
+echo "Enrolling node with $ORCHESTRATOR_URL (models: $MODELS)…"
+exec uv run python -m cgn.node.worker \
+  --orchestrator "$ORCHESTRATOR_URL" \
+  --token "$ENROLL_TOKEN" \
+  --models $MODELS \
+  --key-dir "$KEY_DIR"
